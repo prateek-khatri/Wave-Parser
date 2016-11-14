@@ -17,6 +17,15 @@ static void printCharArr(char *arr, uint8_t size)
 	printf("\n");
 }
 
+static uint32_t changeEndianess(uint32_t num)
+{
+	uint32_t swapped = ((num>>24)&0xff) | // move byte 3 to byte 0
+	               ((num<<8)&0xff0000) | // move byte 1 to byte 2
+	               ((num>>8)&0xff00) | // move byte 2 to byte 1
+			((num<<24)&0xff000000);
+	return swapped;
+}
+
 bool readWavFile(FILE * fp, WAVE * wavHeader)
 {
 	fseek(fp, 0, SEEK_SET);
@@ -28,14 +37,7 @@ bool readWavFile(FILE * fp, WAVE * wavHeader)
 
 bool displayWavInfo(WAVE * wavHeader)
 {
-	if (!isLoaded(wavHeader))	return false;
-
-	// uint32_t num = wavHeader->riff_chunk_size;
- //    uint32_t swapped = ((num>>24)&0xff) | // move byte 3 to byte 0
- //                    ((num<<8)&0xff0000) | // move byte 1 to byte 2
- //                    ((num>>8)&0xff00) | // move byte 2 to byte 1
- //                    ((num<<24)&0xff000000);
- //        wavHeader->riff_chunk_size = swapped;	
+	if (!isLoaded(wavHeader))	return false;	
 
 	float playTime = ((float)wavHeader->riff_chunk_size);
 	playTime *= 8;
