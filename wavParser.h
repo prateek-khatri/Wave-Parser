@@ -34,7 +34,7 @@ typedef struct WAVE
 
 bool readWavFile(FILE * file_pointer, WAVE * wavHeader);
 bool displayWavInfo(WAVE * wavHeader);
-bool validateHeaders(WAVE * wavHeader);
+bool validateHeaders(WAVE * wavHeader, FILE * file_pointer);
 
 
 #endif
