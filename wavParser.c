@@ -19,6 +19,7 @@ static void printCharArr(char *arr, uint8_t size)
 
 bool readWavFile(FILE * fp, WAVE * wavHeader)
 {
+	fseek(fp, 0, SEEK_SET);
 	fread(wavHeader, sizeof(WAVE), 1, fp);
 
 	return isLoaded(wavHeader);
@@ -28,6 +29,13 @@ bool readWavFile(FILE * fp, WAVE * wavHeader)
 bool displayWavInfo(WAVE * wavHeader)
 {
 	if (!isLoaded(wavHeader))	return false;
+
+	// uint32_t num = wavHeader->riff_chunk_size;
+ //    uint32_t swapped = ((num>>24)&0xff) | // move byte 3 to byte 0
+ //                    ((num<<8)&0xff0000) | // move byte 1 to byte 2
+ //                    ((num>>8)&0xff00) | // move byte 2 to byte 1
+ //                    ((num<<24)&0xff000000);
+ //        wavHeader->riff_chunk_size = swapped;	
 
 	float playTime = ((float)wavHeader->riff_chunk_size);
 	playTime *= 8;
@@ -52,17 +60,82 @@ bool displayWavInfo(WAVE * wavHeader)
 	printf("DATA_CHUNK_ID: "); printCharArr(wavHeader->data_chunk_id, 4);
 	printf("DATA_CHUNK_SIZE: %u\n", wavHeader->data_chunk_size);
 	printf("\n");
-	printf("File Duration: %0.2f\n", playTime);
+	printf("File Duration: %0.2f sec, %0.2f min\n", playTime, playTime/60);
 	printf("--------------------------------\n");
 
 	return true;
 
 }
 
-bool validateHeaders(WAVE * wavHeader)
+static uint32_t findDataSize(FILE * file_pointer)
+{
+	const int  dataOffset = 44;
+
+	fseek(file_pointer, dataOffset, SEEK_SET);
+
+	uint32_t size = 0;
+
+	while(!feof(file_pointer))
+	{
+		getc(file_pointer);
+		size++;
+	}
+	printf("Data CALC: %u\n", size);
+	return size;
+
+}
+
+bool validateHeaders(WAVE * wavHeader, FILE * file_pointer)
 {
 	if (!isLoaded(wavHeader))	return false;
+
+	uint32_t dataSize = findDataSize(file_pointer);
+	uint8_t errCnt = 0;
+
+	if (wavHeader->riff_chunk_size != dataSize + 36)
+	{
+		printf("Riff Chunk Size: ERROR\n");
+		errCnt++;
+	}
+
+	if (wavHeader->data_chunk_size != dataSize)
+	{
+		printf("Data Chunk Size: ERROR\n");
+		errCnt++;
+	}
+
+	if (wavHeader->fmt_chunk_size != 16)
+	{
+		printf("FMT Chunk Size: ERROR\n");
+		errCnt++;
+	}
+
+	printf("Total Errors: %u\n", errCnt);
+
+	return (errCnt == 0);
+
+}
+
+static bool fixHeaders(WAVE * wavHeader, FILE * file_pointer)
+{
+	uint32_t dataSize = findDataSize(file_pointer);
+
+	fseek(file_pointer, 40, SEEK_SET);
+
+	fwrite(&dataSize, sizeof(uint32_t), 1, file_pointer);
+
+	fseek(file_pointer, 4, SEEK_SET);
+
+	uint32_t riffSize  = dataSize + 36;
+
+	fwrite(&riffSize, sizeof(uint32_t), 1, file_pointer);
+
+	if(!readWavFile(file_pointer,wavHeader)) return false;
+	if(!displayWavInfo(wavHeader)) return false;
+
 	return true;
+
+
 }
 
 int main(int argc, char *argv[])
@@ -76,7 +149,7 @@ int main(int argc, char *argv[])
 	WAVE wavHeader;
 	char * fileName = argv[1];
 
-	FILE * file_pointer = fopen(fileName, "rb");
+	FILE * file_pointer = fopen(fileName, "rb+");
 	if (file_pointer == NULL)
 	{
 		printf("File Open Error!\n");
@@ -90,7 +163,13 @@ int main(int argc, char *argv[])
 	}
 
 	if (!displayWavInfo(&wavHeader)) printf("File Display Error!\n");
-	if (!validateHeaders(&wavHeader)) printf("File Validation Error!\n");
+	if (!validateHeaders(&wavHeader, file_pointer))
+	{
+		 printf("File Validation Error!\n");
+		 printf("Fixing Headers...\n");
+		 if(!fixHeaders(&wavHeader, file_pointer)) printf("FIX ERROR\n");
+	}
+	fclose(file_pointer);
 
 	return 0;
 }
